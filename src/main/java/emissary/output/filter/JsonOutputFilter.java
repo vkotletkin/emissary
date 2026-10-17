@@ -117,6 +117,11 @@ public class JsonOutputFilter extends AbstractRollableFilter {
         @Override
         public void serializeAsField(Object pojo, JsonGenerator jgen, SerializerProvider provider, PropertyWriter writer) throws Exception {
 
+            if (!(pojo instanceof Map<?, ?> parameters)) {
+                writer.serializeAsField(pojo, jgen, provider);
+                return;
+            }
+
             String key = writer.getName();
             @SuppressWarnings("unchecked")
             Collection<Object> values = (Collection<Object>) ((Map<?, ?>) pojo).get(key);

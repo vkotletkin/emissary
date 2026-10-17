@@ -65,6 +65,7 @@ public class TikaFilePlace extends IdPlace {
 
     @Override
     public void process(final IBaseDataObject payload) throws ResourceException {
+
         if (payload.dataLength() == 0) {
             payload.setCurrentForm(Form.EMPTY);
             payload.setFileType(Form.EMPTY);
@@ -83,7 +84,7 @@ public class TikaFilePlace extends IdPlace {
 
         // Маппим через ID_RENAME_ из .cfg или берём subtype (напр. "application/pdf" -> "PDF")
         String form = this.renames.getOrDefault(mimeString, toEmissaryForm(mimeString));
-        setCurrentForm(payload, form);
+        payload.setCurrentForm(form);
 
         if (this.setFileType) {
             payload.setFileTypeIfEmpty(form);
