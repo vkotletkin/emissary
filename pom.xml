@@ -150,14 +150,15 @@
     <sonar.issue.ignore.multicriteria.e1.resourceKey>**/*.java</sonar.issue.ignore.multicriteria.e1.resourceKey>
     <sonar.issue.ignore.multicriteria.e1.ruleKey>java:S6212</sonar.issue.ignore.multicriteria.e1.ruleKey>
     <!-- With Java 8 and the latest version of surefire, user.timezone is not read correctly.  Reevaluate one day.
-         See https://issues.apache.org/jira/browse/SUREFIRE-1176 or
-         http://stackoverflow.com/questions/19121928/java-system-getproperty-user-timezone-does-not-work
+             See https://issues.apache.org/jira/browse/SUREFIRE-1176 or
+             http://stackoverflow.com/questions/19121928/java-system-getproperty-user-timezone-does-not-work
 
-         The COMPAT locale provider is used because the date formatter parsing has changed significantly
-         when using the CLDR locale provider, which is the default in JDK11.
-         https://www.oracle.com/technetwork/java/javase/documentation/java11locales-5069639.html
-      -->
-    <surefire.argline>@{argLine} -Xmx1024m -Xms256m -Djava.io.tmpdir=${java.io.tmpdir} -Djava.locale.providers=COMPAT -Djava.net.preferIPv4Stack=true -Duser.timezone=GMT -Djava.awt.headless=true</surefire.argline>
+             The COMPAT locale provider is used because the date formatter parsing has changed significantly
+             when using the CLDR locale provider, which is the default in JDK11.
+             https://www.oracle.com/technetwork/java/javase/documentation/java11locales-5069639.html
+          -->
+    <surefire.argline>@{argLine} -Xmx1024m -Xms256m -Djava.io.tmpdir=${java.io.tmpdir}
+            -Djava.locale.providers=COMPAT -Djava.net.preferIPv4Stack=true -Duser.timezone=GMT -Djava.awt.headless=true</surefire.argline>
     <surefire.forkCount>.5C</surefire.forkCount>
   </properties>
   <dependencyManagement>
@@ -187,6 +188,13 @@
         <groupId>io.netty</groupId>
         <artifactId>netty-bom</artifactId>
         <version>${dep.netty.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tika</groupId>
+        <artifactId>tika-bom</artifactId>
+        <version>3.3.3</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -447,6 +455,7 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <!--    end my deps-->
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
@@ -586,6 +595,22 @@
     <dependency>
       <groupId>org.apache.httpcomponents.core5</groupId>
       <artifactId>httpcore5</artifactId>
+    </dependency>
+    <!--    my dependencies -->
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-core</artifactId>
+      <version>3.3.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-parser-sqlite3-package</artifactId>
+      <version>3.3.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-parsers-standard-package</artifactId>
+      <version>3.3.3</version>
     </dependency>
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
@@ -904,11 +929,11 @@
           <configuration>
             <configLocation>${checkstyleFormatter}</configLocation>
             <!-- this combination of these two configurations
-              (failOnViolation=true and violationSeverity=error) means
-              any checks with severity=error will fail the build -->
+                          (failOnViolation=true and violationSeverity=error) means
+                          any checks with severity=error will fail the build -->
             <!-- TODO enforce more checkstyle categories as the	build gets cleaned up -->
             <!-- As you fix checkstyle warning categories, change the severity of that category
-              to "error" so it will fail the build if new violations of that category get introduced. -->
+                          to "error" so it will fail the build if new violations of that category get introduced. -->
             <failOnViolation>true</failOnViolation>
             <violationSeverity>error</violationSeverity>
             <includeTestSourceDirectory>true</includeTestSourceDirectory>
@@ -1328,8 +1353,8 @@
                         <counter>COMPLEXITY</counter>
                         <value>COVEREDRATIO</value>
                         <!--
-                        <minimum>0.37</minimum>
-                        -->
+                                                <minimum>0.37</minimum>
+                                                -->
                       </limit>
                     </limits>
                   </rule>
@@ -1797,24 +1822,24 @@
                 <!--arg>-Xlint:all</arg-->
                 <arg>-XDcompilePolicy=simple</arg>
                 <arg>-Xplugin:ErrorProne \
-                  -XepAllDisabledChecksAsWarnings \
-                  -XepAllSuggestionsAsWarnings \
-                  -XepDisableWarningsInGeneratedCode \
-                  -XepExcludedPaths:.*/generated-sources/.* \
-                  -Xep:AndroidJdkLibsChecker:OFF \
-                  -Xep:BooleanParameter:OFF \
-                  -Xep:CanIgnoreReturnValueSuggester:OFF \
-                  -Xep:DefaultCharset:OFF \
-                  -Xep:InconsistentOverloads:OFF \
-                  -Xep:InlineMeSuggester:OFF \
-                  -Xep:InlineTrivialConstant:OFF \
-                  -Xep:Java7ApiChecker:OFF \
-                  -Xep:Java8ApiChecker:OFF \
-                  -Xep:StringSplitter:OFF \
-                  -Xep:UnnecessaryFinal:OFF \
-                  -Xep:Var:OFF \
-                  -Xep:Varifier:OFF \
-                  -Xep:YodaCondition:OFF</arg>
+                                    -XepAllDisabledChecksAsWarnings \
+                                    -XepAllSuggestionsAsWarnings \
+                                    -XepDisableWarningsInGeneratedCode \
+                                    -XepExcludedPaths:.*/generated-sources/.* \
+                                    -Xep:AndroidJdkLibsChecker:OFF \
+                                    -Xep:BooleanParameter:OFF \
+                                    -Xep:CanIgnoreReturnValueSuggester:OFF \
+                                    -Xep:DefaultCharset:OFF \
+                                    -Xep:InconsistentOverloads:OFF \
+                                    -Xep:InlineMeSuggester:OFF \
+                                    -Xep:InlineTrivialConstant:OFF \
+                                    -Xep:Java7ApiChecker:OFF \
+                                    -Xep:Java8ApiChecker:OFF \
+                                    -Xep:StringSplitter:OFF \
+                                    -Xep:UnnecessaryFinal:OFF \
+                                    -Xep:Var:OFF \
+                                    -Xep:Varifier:OFF \
+                                    -Xep:YodaCondition:OFF</arg>
               </compilerArgs>
               <annotationProcessorPaths>
                 <path>
@@ -1918,7 +1943,7 @@
       <activation>
         <property>
           <!-- You must add -Dnetbeans.ide as global option to the maven command for this to work
-               Could not find any property existing when Netbeans was running the build -->
+                         Could not find any property existing when Netbeans was running the build -->
           <name>netbeans.ide</name>
         </property>
       </activation>

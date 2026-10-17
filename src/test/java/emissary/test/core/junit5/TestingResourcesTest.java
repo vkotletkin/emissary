@@ -1,7 +1,6 @@
 package emissary.test.core.junit5;
 
 import emissary.place.IServiceProviderPlace;
-import emissary.transform.HtmlEscapePlace;
 import emissary.transform.HtmlEscapePlaceTest;
 
 import org.junit.jupiter.params.provider.Arguments;
