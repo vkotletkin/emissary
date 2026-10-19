@@ -6,6 +6,7 @@ import emissary.core.IBaseDataObject;
 import emissary.core.ResourceException;
 import emissary.place.ServiceProviderPlace;
 import emissary.util.EmailUtils;
+
 import org.apache.james.mime4j.codec.DecodeMonitor;
 import org.apache.james.mime4j.dom.Body;
 import org.apache.james.mime4j.dom.Entity;
@@ -35,12 +36,12 @@ import java.util.Set;
 /**
  * Разбирает RFC822 (EML).
  * <ul>
- *   <li>Родительский объект сохраняет свои исходные байты {@code data()}, получает метаданные заголовков,
- *       фиксирует {@code fileType = EML} и переходит в форму {@code EML-PROCESSED} (для фазы {@code ANALYZE} и {@code IO}).</li>
- *   <li>Текстовые тела ({@code text/plain}, {@code text/html}) становятся дочерними объектами
- *       с {@code EMAIL_PART_TYPE = BODY} и формами {@code TXT} / {@code HTML}.</li>
- *   <li>Файлы-вложения и вложенные {@code message/rfc822} становятся дочерними объектами
- *       с {@code EMAIL_PART_TYPE = ATTACHMENT} и формой {@code UNKNOWN}.</li>
+ * <li>Родительский объект сохраняет свои исходные байты {@code data()}, получает метаданные заголовков, фиксирует
+ * {@code fileType = EML} и переходит в форму {@code EML-PROCESSED} (для фазы {@code ANALYZE} и {@code IO}).</li>
+ * <li>Текстовые тела ({@code text/plain}, {@code text/html}) становятся дочерними объектами с
+ * {@code EMAIL_PART_TYPE = BODY} и формами {@code TXT} / {@code HTML}.</li>
+ * <li>Файлы-вложения и вложенные {@code message/rfc822} становятся дочерними объектами с
+ * {@code EMAIL_PART_TYPE = ATTACHMENT} и формой {@code UNKNOWN}.</li>
  * </ul>
  */
 public class EmailPlace extends ServiceProviderPlace {
@@ -304,6 +305,7 @@ public class EmailPlace extends ServiceProviderPlace {
         if (address != null) {
             payload.putParameter(key + "_ADDRESS", address);
         }
+
         if (name != null) {
             payload.putParameter(key + "_NAME", name);
         }
@@ -322,7 +324,7 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void extractParts(final Entity entity, final IBaseDataObject parent, final List<IBaseDataObject> children,
-                              final ExtractionCounters counters, final Set<String> seenAlternativeMimes) throws IOException {
+            final ExtractionCounters counters, final Set<String> seenAlternativeMimes) throws IOException {
 
         Body body = entity.getBody();
         if (body == null) {
@@ -344,8 +346,8 @@ public class EmailPlace extends ServiceProviderPlace {
                 }
             }
             case Message nestedMessage ->
-                    addAttachmentChild(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME,
-                            parent, children, counters);
+                addAttachmentChild(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME,
+                        parent, children, counters);
 
             case SingleBody singleBody -> {
                 byte[] bytes = readBytes(singleBody);
@@ -356,16 +358,16 @@ public class EmailPlace extends ServiceProviderPlace {
                 addAttachmentChild(bytes, entity, null, parent, children, counters);
             }
             default ->
-                    logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
+                logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
         }
     }
 
     /**
-     * RFC 2046: последняя часть {@code multipart/alternative} — наиболее полное представление, обходим с конца,
-     * но сохраняем и {@code text/plain}, и {@code text/html} как отдельные дочерние объекты тела (по одному на MIME-тип).
+     * RFC 2046: последняя часть {@code multipart/alternative} — наиболее полное представление, обходим с конца, но
+     * сохраняем и {@code text/plain}, и {@code text/html} как отдельные дочерние объекты тела (по одному на MIME-тип).
      */
     private void extractAlternative(final Multipart multipart, final IBaseDataObject parent,
-                                    final List<IBaseDataObject> children, final ExtractionCounters counters) throws IOException {
+            final List<IBaseDataObject> children, final ExtractionCounters counters) throws IOException {
 
         List<Entity> parts = multipart.getBodyParts();
         if (parts.isEmpty()) {
@@ -388,8 +390,8 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void addBodyChild(final byte[] bytes, final Entity entity, final IBaseDataObject parent,
-                              final List<IBaseDataObject> children, final ExtractionCounters counters,
-                              final Set<String> seenAlternativeMimes) {
+            final List<IBaseDataObject> children, final ExtractionCounters counters,
+            final Set<String> seenAlternativeMimes) {
 
         if (bytes.length == 0) {
             return;
@@ -434,8 +436,8 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void addAttachmentChild(final byte[] bytes, final Entity entity, final String fallbackFilename,
-                                    final IBaseDataObject parent, final List<IBaseDataObject> children,
-                                    final ExtractionCounters counters) {
+            final IBaseDataObject parent, final List<IBaseDataObject> children,
+            final ExtractionCounters counters) {
 
         String filename = resolveFilename(entity);
         if (filename == null) {
