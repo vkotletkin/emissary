@@ -5,12 +5,11 @@ import emissary.core.Form;
 import emissary.core.IBaseDataObject;
 import emissary.core.ResourceException;
 import emissary.place.ServiceProviderPlace;
-import emissary.transform.model.EmailSubject;
 import emissary.util.EmailUtils;
-
 import org.apache.james.mime4j.codec.DecodeMonitor;
 import org.apache.james.mime4j.dom.Body;
 import org.apache.james.mime4j.dom.Entity;
+import org.apache.james.mime4j.dom.Header;
 import org.apache.james.mime4j.dom.Message;
 import org.apache.james.mime4j.dom.Multipart;
 import org.apache.james.mime4j.dom.SingleBody;
@@ -22,7 +21,6 @@ import org.apache.james.mime4j.message.DefaultMessageBuilder;
 import org.apache.james.mime4j.message.DefaultMessageWriter;
 import org.apache.james.mime4j.stream.Field;
 import org.apache.james.mime4j.stream.MimeConfig;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -30,24 +28,34 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 
 /**
- * Разбирает RFC822. Вложения и вложенные {@code message/rfc822} становятся детьми. Текстовое тело подменяет байты
- * родителя: {@code text/plain} получает форму {@code TXT}, иначе {@code text/html} получает форму {@code HTML}. Второй
- * вид остаётся alternate view. Без текстового тела форма становится {@code EML-PROCESSED}, байты остаются письмом.
+ * Разбирает RFC822 (EML).
+ * <ul>
+ *   <li>Родительский объект сохраняет свои исходные байты {@code data()}, получает метаданные заголовков,
+ *       фиксирует {@code fileType = EML} и переходит в форму {@code EML-PROCESSED} (для фазы {@code ANALYZE} и {@code IO}).</li>
+ *   <li>Текстовые тела ({@code text/plain}, {@code text/html}) становятся дочерними объектами
+ *       с {@code EMAIL_PART_TYPE = BODY} и формами {@code TXT} / {@code HTML}.</li>
+ *   <li>Файлы-вложения и вложенные {@code message/rfc822} становятся дочерними объектами
+ *       с {@code EMAIL_PART_TYPE = ATTACHMENT} и формой {@code UNKNOWN}.</li>
+ * </ul>
  */
 public class EmailPlace extends ServiceProviderPlace {
+
+    private static final String FILETYPE_EML = "EML";
+    private static final String FORM_EML_PROCESSED = "EML-PROCESSED";
+    private static final String FORM_TXT = "TXT";
 
     private static final String TEXT_PLAIN = "text/plain";
     private static final String TEXT_HTML = "text/html";
     private static final String MULTIPART_ALTERNATIVE = "multipart/alternative";
     private static final String CHARSET_UTF_8 = "UTF-8";
-    private static final String FORM_TXT = "TXT";
-    private static final String FORM_EML_PROCESSED = "EML-PROCESSED";
-    private static final String ATTACHMENT = "ATTACHMENT";
+
+    private static final String PART_TYPE_BODY = "BODY";
+    private static final String PART_TYPE_ATTACHMENT = "ATTACHMENT";
     private static final String EXTENDING_FILE_SUFFIX = "-att-";
     private static final String FORWARDED_MESSAGE_NAME = "forwarded.eml";
 
@@ -84,7 +92,6 @@ public class EmailPlace extends ServiceProviderPlace {
      * вложением.
      */
     private static boolean isTextBody(final Entity entity, final boolean inAlternative) {
-
         if (!isPlainOrHtml(entity)) {
             return false;
         }
@@ -102,17 +109,11 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private static String childBaseName(final IBaseDataObject parent) {
-
-        String parentName = parent.getFilename();
-        if (parentName == null || parentName.isBlank()) {
-            parentName = parent.shortName();
+        String parentName = trimToNull(parent.shortName());
+        if (parentName == null) {
+            parentName = trimToNull(parent.getFilename());
         }
-
-        if (parentName == null || parentName.isBlank()) {
-            return "email";
-        }
-
-        return parentName;
+        return parentName != null ? parentName : "email";
     }
 
     /**
@@ -120,17 +121,14 @@ public class EmailPlace extends ServiceProviderPlace {
      * отдельно.
      */
     private static String resolveFilename(final Entity entity) {
-        String filename = entity.getFilename();
-        if ((filename == null || filename.isBlank()) && entity.getHeader() != null) {
+        String filename = trimToNull(entity.getFilename());
+        if (filename == null && entity.getHeader() != null) {
             Field raw = entity.getHeader().getField("Content-Type");
             if (raw instanceof ContentTypeField contentType) {
-                filename = contentType.getParameter("name");
+                filename = trimToNull(contentType.getParameter("name"));
             }
         }
-        if (filename == null || filename.isBlank()) {
-            return null;
-        }
-        return EmailUtils.decodeRaw(filename);
+        return filename == null ? null : EmailUtils.decodeRaw(filename);
     }
 
     /**
@@ -147,12 +145,7 @@ public class EmailPlace extends ServiceProviderPlace {
             return null;
         }
 
-        String charset = contentType.getCharset();
-        if (charset == null || charset.isBlank()) {
-            return null;
-        }
-
-        return charset.trim();
+        return trimToNull(contentType.getCharset());
     }
 
     private static byte[] toUtf8(final String charset, final byte[] bytes) {
@@ -181,96 +174,34 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private static String normalizeContentId(final String raw) {
-        if (raw == null) {
+        String value = trimToNull(raw);
+        if (value == null) {
             return null;
         }
-        String value = raw.trim();
         if (value.startsWith("<") && value.endsWith(">") && value.length() > 2) {
-            value = value.substring(1, value.length() - 1).trim();
+            value = trimToNull(value.substring(1, value.length() - 1));
         }
-        return value.isEmpty() ? null : value;
+        return value;
     }
 
-    private static String viewName(final Entity entity) {
-        return TEXT_HTML.equalsIgnoreCase(entity.getMimeType()) ? TEXT_HTML : TEXT_PLAIN;
+    private static String formatMailbox(final String name, final String address) {
+        if (name != null && address != null) {
+            return name + " <" + address + ">";
+        }
+        return address != null ? address : name;
     }
 
-    private static boolean hasView(final List<TextView> textViews, final IBaseDataObject parent, final String name) {
-        if (parent.getAlternateView(name) != null) {
-            return true;
+    private static String trimToNull(final String value) {
+        if (value == null) {
+            return null;
         }
-        for (TextView view : textViews) {
-            if (name.equals(view.name())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Plain, если он есть, становится содержимым письма. Иначе эту роль берёт HTML. Второй вид остаётся alternate view. Без
-     * текстового тела форма {@code EML-PROCESSED}: байты остаются письмом, а {@code EML} повторно не разберётся. Суффикс
-     * {@code -PROCESSED} не обрывает маршрут, и родитель доходит до вывода.
-     */
-    private static void publishBody(final IBaseDataObject parent, final List<TextView> textViews) {
-
-        TextView html = findView(textViews, TEXT_HTML);
-        TextView plain = findView(textViews, TEXT_PLAIN);
-        TextView primary = plain != null ? plain : html;
-
-        if (primary == null) {
-            parent.setCurrentForm(FORM_EML_PROCESSED);
-            return;
-        }
-
-        parent.setData(primary.data());
-        boolean htmlBody = TEXT_HTML.equals(primary.name());
-        String form = htmlBody ? Form.HTML : FORM_TXT;
-        parent.setCurrentForm(form);
-        parent.setFileType(form);
-        rememberCharset(parent, primary);
-        if (htmlBody) {
-            if (primary.charsetValue() != null) {
-                parent.setFontEncoding(primary.charsetValue());
-            }
-        } else {
-            parent.setFontEncoding(CHARSET_UTF_8);
-        }
-        TextView secondary = htmlBody ? plain : html;
-        if (secondary != null) {
-            parent.addAlternateView(secondary.name(), secondary.data());
-            rememberCharset(parent, secondary);
-        }
-    }
-
-    private static TextView findView(final List<TextView> textViews, final String name) {
-        for (TextView view : textViews) {
-            if (name.equals(view.name())) {
-                return view;
-            }
-        }
-        return null;
-    }
-
-    private static void rememberCharset(final IBaseDataObject parent, final TextView view) {
-        if (view.charsetParameter() != null) {
-            parent.putParameter(view.charsetParameter(), view.charsetValue());
-        }
-    }
-
-    @Override
-    protected List<String> getAlternateViewsModified() {
-        return List.of(TEXT_PLAIN, TEXT_HTML);
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Override
     protected List<String> getOutputForms() {
-        return List.of(Form.HTML, FORM_TXT, FORM_EML_PROCESSED, Form.ERROR, Form.EMPTY);
-    }
-
-    @Override
-    protected boolean changesPrimaryView() {
-        return true;
+        return List.of(FORM_EML_PROCESSED, Form.HTML, FORM_TXT, Form.UNKNOWN, Form.ERROR, Form.EMPTY);
     }
 
     @Override
@@ -280,7 +211,6 @@ public class EmailPlace extends ServiceProviderPlace {
 
     @Override
     public List<IBaseDataObject> processHeavyDuty(final IBaseDataObject payload) throws ResourceException {
-
         List<IBaseDataObject> children = new ArrayList<>();
 
         if (payload.dataLength() == 0) {
@@ -297,10 +227,12 @@ public class EmailPlace extends ServiceProviderPlace {
             message = builder.parseMessage(is);
             putHeaders(payload, message);
 
-            List<TextView> textViews = new ArrayList<>();
-            extractParts(message, payload, children, textViews, false);
-            publishBody(payload, textViews);
-            payload.putParameter("EMAIL_ATTACHMENT_COUNT", Integer.toString(children.size()));
+            ExtractionCounters counters = new ExtractionCounters();
+            extractParts(message, payload, children, counters, null);
+
+            payload.setFileTypeIfEmpty(FILETYPE_EML);
+            payload.setCurrentForm(FORM_EML_PROCESSED);
+            payload.putParameter("EMAIL_ATTACHMENT_COUNT", Integer.toString(counters.attachmentCount));
         } catch (Exception e) {
             children.clear();
             logger.error("Failed to parse email {}", payload.shortName(), e);
@@ -315,26 +247,71 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void putHeaders(final IBaseDataObject payload, final Message message) {
-        if (message.getSubject() != null) {
-            payload.putParameter("EMAIL_SUBJECT", message.getSubject());
+        String subject = trimToNull(message.getSubject());
+        if (subject != null) {
+            payload.putParameter("EMAIL_SUBJECT", EmailUtils.decodeRaw(subject));
         }
         if (message.getDate() != null) {
             payload.putParameter("EMAIL_DATE", message.getDate().toInstant().toString());
         }
-        if (message.getMessageId() != null) {
-            payload.putParameter("EMAIL_MESSAGE_ID", message.getMessageId());
+        String messageId = trimToNull(message.getMessageId());
+        if (messageId != null) {
+            payload.putParameter("EMAIL_MESSAGE_ID", messageId);
         }
+
         putMailboxes(payload, "EMAIL_FROM", message.getFrom());
+        putMailboxes(payload, "EMAIL_SENDER", message.getSender() == null ? null : new MailboxList(List.of(message.getSender())));
+        putMailboxes(payload, "EMAIL_REPLY_TO", message.getReplyTo());
         putMailboxes(payload, "EMAIL_TO", message.getTo());
         putMailboxes(payload, "EMAIL_CC", message.getCc());
         putMailboxes(payload, "EMAIL_BCC", message.getBcc());
+
+        Header header = message.getHeader();
+        if (header != null) {
+            putRawHeader(payload, header, "In-Reply-To", "EMAIL_IN_REPLY_TO");
+            putRawHeader(payload, header, "References", "EMAIL_REFERENCES");
+            putRawHeader(payload, header, "Return-Path", "EMAIL_RETURN_PATH");
+        }
+    }
+
+    private void putRawHeader(final IBaseDataObject payload, final Header header, final String fieldName, final String paramKey) {
+        for (Field field : header.getFields(fieldName)) {
+            if (field != null) {
+                String body = trimToNull(field.getBody());
+                if (body != null) {
+                    payload.putParameter(paramKey, body);
+                }
+            }
+        }
     }
 
     private void putMailboxes(final IBaseDataObject payload, final String key, final MailboxList mailboxes) {
         if (mailboxes == null || mailboxes.isEmpty()) {
             return;
         }
-        payload.putParameter(key, convertToEmailSubjects(mailboxes));
+        for (Mailbox mailbox : mailboxes) {
+            if (mailbox != null) {
+                putSingleMailbox(payload, key, mailbox);
+            }
+        }
+    }
+
+    private void putSingleMailbox(final IBaseDataObject payload, final String key, final Mailbox mailbox) {
+        String address = trimToNull(mailbox.getAddress());
+        String rawName = trimToNull(mailbox.getName());
+        String name = rawName == null ? null : trimToNull(EmailUtils.decodeRaw(rawName));
+
+        if (address != null) {
+            payload.putParameter(key + "_ADDRESS", address);
+        }
+        if (name != null) {
+            payload.putParameter(key + "_NAME", name);
+        }
+
+        String formatted = formatMailbox(name, address);
+        if (formatted != null) {
+            payload.putParameter(key, formatted);
+        }
     }
 
     private void putMailboxes(final IBaseDataObject payload, final String key, final AddressList addresses) {
@@ -345,99 +322,120 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void extractParts(final Entity entity, final IBaseDataObject parent, final List<IBaseDataObject> children,
-            final List<TextView> textViews, final boolean inAlternative) throws IOException {
+                              final ExtractionCounters counters, final Set<String> seenAlternativeMimes) throws IOException {
 
         Body body = entity.getBody();
         if (body == null) {
             return;
         }
 
+        boolean inAlternative = seenAlternativeMimes != null;
+
         switch (body) {
             case Multipart multipart -> {
                 if (MULTIPART_ALTERNATIVE.equalsIgnoreCase(entity.getMimeType())) {
-                    extractAlternative(multipart, parent, children, textViews);
+                    extractAlternative(multipart, parent, children, counters);
                     return;
                 }
                 for (Entity part : multipart.getBodyParts()) {
                     if (part != null) {
-                        extractParts(part, parent, children, textViews, inAlternative);
+                        extractParts(part, parent, children, counters, seenAlternativeMimes);
                     }
                 }
             }
             case Message nestedMessage ->
-                addAttachment(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME, parent,
-                        children);
+                    addAttachmentChild(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME,
+                            parent, children, counters);
 
             case SingleBody singleBody -> {
                 byte[] bytes = readBytes(singleBody);
-                boolean textBody = isTextBody(entity, inAlternative);
-                if (textBody && addTextView(textViews, parent, entity, bytes)) {
+                if (isTextBody(entity, inAlternative)) {
+                    addBodyChild(bytes, entity, parent, children, counters, seenAlternativeMimes);
                     return;
                 }
-                if (textBody && inAlternative) {
-                    return;
-                }
-                addAttachment(bytes, entity, null, parent, children);
+                addAttachmentChild(bytes, entity, null, parent, children, counters);
             }
             default ->
-                logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
+                    logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
         }
     }
 
     /**
-     * RFC 2046: последняя часть {@code multipart/alternative} — предпочтительное представление и занимает view первой.
-     * Более ранние текстовые части дописывают только ещё пустые view. Пустое тело слот не занимает.
+     * RFC 2046: последняя часть {@code multipart/alternative} — наиболее полное представление, обходим с конца,
+     * но сохраняем и {@code text/plain}, и {@code text/html} как отдельные дочерние объекты тела (по одному на MIME-тип).
      */
-    private void extractAlternative(final Multipart multipart, final IBaseDataObject parent, final List<IBaseDataObject> children,
-            final List<TextView> textViews) throws IOException {
+    private void extractAlternative(final Multipart multipart, final IBaseDataObject parent,
+                                    final List<IBaseDataObject> children, final ExtractionCounters counters) throws IOException {
 
         List<Entity> parts = multipart.getBodyParts();
         if (parts.isEmpty()) {
             return;
         }
 
+        Set<String> seenAlternativeMimes = new HashSet<>();
+
         Entity preferred = parts.getLast();
         if (preferred != null) {
-            extractParts(preferred, parent, children, textViews, true);
+            extractParts(preferred, parent, children, counters, seenAlternativeMimes);
         }
 
         for (int i = 0; i < parts.size() - 1; i++) {
             Entity part = parts.get(i);
             if (part != null) {
-                extractParts(part, parent, children, textViews, true);
+                extractParts(part, parent, children, counters, seenAlternativeMimes);
             }
         }
     }
 
-    /**
-     * @return true, если байты приняты как тело и их не нужно делать вложением
-     */
-    private boolean addTextView(final List<TextView> textViews, final IBaseDataObject parent, final Entity entity, final byte[] bytes) {
+    private void addBodyChild(final byte[] bytes, final Entity entity, final IBaseDataObject parent,
+                              final List<IBaseDataObject> children, final ExtractionCounters counters,
+                              final Set<String> seenAlternativeMimes) {
 
         if (bytes.length == 0) {
-            return true;
+            return;
         }
 
-        String name = viewName(entity);
-        if (hasView(textViews, parent, name)) {
-            return false;
-        }
+        boolean htmlBody = TEXT_HTML.equalsIgnoreCase(entity.getMimeType());
+        String normalizedMime = htmlBody ? TEXT_HTML : TEXT_PLAIN;
 
-        if (TEXT_PLAIN.equals(name)) {
-            String charset = declaredCharset(entity);
-            byte[] encoded = toUtf8(charset, bytes);
-            String label = plainCharsetLabel(charset, encoded != bytes);
-            textViews.add(new TextView(name, encoded, label == null ? null : "EMAIL_PLAIN_CHARSET", label));
-            return true;
+        if (seenAlternativeMimes != null && !seenAlternativeMimes.add(normalizedMime)) {
+            return;
         }
 
         String charset = declaredCharset(entity);
-        textViews.add(new TextView(name, bytes, charset == null ? null : "EMAIL_HTML_CHARSET", charset));
-        return true;
+        byte[] childBytes;
+        String effectiveCharset;
+        String form;
+
+        if (htmlBody) {
+            childBytes = bytes;
+            effectiveCharset = charset;
+            form = Form.HTML;
+        } else {
+            childBytes = toUtf8(charset, bytes);
+            effectiveCharset = plainCharsetLabel(charset, childBytes != bytes);
+            form = FORM_TXT;
+        }
+
+        String childName = childBaseName(parent) + EXTENDING_FILE_SUFFIX + (children.size() + 1);
+        IBaseDataObject child = DataObjectFactory.getInstance(childBytes, childName, form);
+        child.setFileType(form);
+        child.putParameter("EMAIL_PART_TYPE", PART_TYPE_BODY);
+        child.putParameter("BODY_MIME_TYPE", normalizedMime);
+
+        if (effectiveCharset != null) {
+            child.putParameter("BODY_CHARSET", effectiveCharset);
+            child.setFontEncoding(effectiveCharset);
+        } else if (!htmlBody) {
+            child.setFontEncoding(CHARSET_UTF_8);
+        }
+
+        children.add(child);
     }
 
-    private void addAttachment(final byte[] bytes, final Entity entity, final String fallbackFilename, final IBaseDataObject parent,
-            final List<IBaseDataObject> children) {
+    private void addAttachmentChild(final byte[] bytes, final Entity entity, final String fallbackFilename,
+                                    final IBaseDataObject parent, final List<IBaseDataObject> children,
+                                    final ExtractionCounters counters) {
 
         String filename = resolveFilename(entity);
         if (filename == null) {
@@ -446,7 +444,7 @@ public class EmailPlace extends ServiceProviderPlace {
 
         String childName = childBaseName(parent) + EXTENDING_FILE_SUFFIX + (children.size() + 1);
         IBaseDataObject child = DataObjectFactory.getInstance(bytes, childName, Form.UNKNOWN);
-        child.putParameter("EMAIL_PART_TYPE", ATTACHMENT);
+        child.putParameter("EMAIL_PART_TYPE", PART_TYPE_ATTACHMENT);
         if (entity.getMimeType() != null) {
             child.putParameter("ATTACHMENT_DECLARED_MIME", entity.getMimeType());
         }
@@ -469,45 +467,10 @@ public class EmailPlace extends ServiceProviderPlace {
             }
         }
         children.add(child);
+        counters.attachmentCount++;
     }
 
-    private List<EmailSubject> convertToEmailSubjects(final MailboxList mailboxList) {
-        List<EmailSubject> emailFromList = new ArrayList<>();
-        for (Mailbox mailbox : mailboxList) {
-            if (mailbox != null) {
-                emailFromList.add(EmailSubject.fromMailBox(mailbox));
-            }
-        }
-        return emailFromList;
-    }
-
-    private record TextView(String name, byte[] data, String charsetParameter, String charsetValue) {
-
-        @Override
-        public boolean equals(final Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (!(obj instanceof TextView(String name1, byte[] data1, String parameter, String value))) {
-                return false;
-            }
-            return Objects.equals(name, name1)
-                    && Arrays.equals(data, data1)
-                    && Objects.equals(charsetParameter, parameter)
-                    && Objects.equals(charsetValue, value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, Arrays.hashCode(data), charsetParameter, charsetValue);
-        }
-
-        @Override
-        public @NonNull String toString() {
-            return "TextView[name=" + name
-                    + ", data=" + Arrays.toString(data)
-                    + ", charsetParameter=" + charsetParameter
-                    + ", charsetValue=" + charsetValue + "]";
-        }
+    private static final class ExtractionCounters {
+        int attachmentCount;
     }
 }
