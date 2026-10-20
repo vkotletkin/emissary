@@ -274,8 +274,26 @@ public class Form {
     /** Форма родительского DOCX-документа после извлечения текста и вложений */
     public static final String DOCX_PROCESSED = DOCX + SUFFIXES_PROCESSED;
 
+    /** Форма родительского DOC-документа после извлечения текста */
+    public static final String DOC_PROCESSED = DOC + SUFFIXES_PROCESSED;
+
     /** Форма родительского PDF-документа после извлечения текста и картинок */
     public static final String PDF_PROCESSED = PDF + SUFFIXES_PROCESSED;
+
+    /** Форма родительской таблицы XLSX после извлечения текста листов и вложений */
+    public static final String XLSX_PROCESSED = XLSX + SUFFIXES_PROCESSED;
+
+    /** Форма родительской таблицы XLS после извлечения текста листов */
+    public static final String XLS_PROCESSED = XLS + SUFFIXES_PROCESSED;
+
+    /** Форма родительской презентации PPTX после извлечения текста слайдов и вложений */
+    public static final String PPTX_PROCESSED = PPTX + SUFFIXES_PROCESSED;
+
+    /** Форма родительской презентации PPT после извлечения текста слайдов */
+    public static final String PPT_PROCESSED = PPT + SUFFIXES_PROCESSED;
+
+    /** Форма родительского RTF-документа после извлечения текста */
+    public static final String RTF_PROCESSED = RTF + SUFFIXES_PROCESSED;
 
     /** This class is not meant to be instantiated. */
     private Form() {}
