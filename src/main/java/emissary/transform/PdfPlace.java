@@ -88,7 +88,7 @@ public class PdfPlace extends ServiceProviderPlace {
     }
 
     private static void collectEmbeddedFileSpecs(final PDEmbeddedFilesNameTreeNode node,
-                                                 final List<PDComplexFileSpecification> target) throws IOException {
+            final List<PDComplexFileSpecification> target) throws IOException {
         Map<String, PDComplexFileSpecification> names = node.getNames();
         if (names != null) {
             target.addAll(names.values());
@@ -233,7 +233,7 @@ public class PdfPlace extends ServiceProviderPlace {
     }
 
     private void extractTextChild(final PDDocument document, final IBaseDataObject parent,
-                                  final List<IBaseDataObject> children) throws IOException {
+            final List<IBaseDataObject> children) throws IOException {
         int totalPages = document.getNumberOfPages();
         if (totalPages <= 0) {
             return;
@@ -265,7 +265,7 @@ public class PdfPlace extends ServiceProviderPlace {
     }
 
     private void extractEmbeddedFileChildren(final PDDocument document, final IBaseDataObject parent,
-                                             final List<IBaseDataObject> children) throws IOException {
+            final List<IBaseDataObject> children) throws IOException {
         PDDocumentCatalog catalog = document.getDocumentCatalog();
         if (catalog == null) {
             return;

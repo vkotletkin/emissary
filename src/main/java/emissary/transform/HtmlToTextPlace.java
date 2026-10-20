@@ -29,8 +29,13 @@ import java.util.Set;
  * <li>Извлекает все ссылки {@code <a href="...">} в параметр {@code HTML_LINK} (чтобы ссылки не терялись после удаления
  * тегов).</li>
  * <li>Удаляет {@code <script>}, {@code <style>}, {@code <noscript>}, {@code <svg>}, {@code <head>} и преобразует
- * блочные теги ({@code <br>}, {@code <p>}, {@code <div>}, {@code <tr>}, {@code <li>}, {@code <h1..h6>}) в читаемый
- * текст с сохранением структуры строк.</li>
+ * блочные теги ({@code <br>
+ * }, {@code 
+ * <p>
+ * }, {@code <div>}, {@code 
+ * <tr>
+ * }, {@code 
+ * <li>}, {@code <h1..h6>}) в читаемый текст с сохранением структуры строк.</li>
  * <li>Заменяет данные объекта на извлечённый UTF-8 текст и меняет форму с {@link Form#HTML} на {@link Form#TXT} (чтобы
  * далее текст прошёл через {@link TextCleanPlace} -&gt; {@link emissary.analyze.TextAnalyzePlace}).</li>
  * </ul>
@@ -80,7 +85,7 @@ public class HtmlToTextPlace extends ServiceProviderPlace {
     }
 
     private static void putMetaContent(final Document doc, final IBaseDataObject payload,
-                                       final String metaName, final String paramKey) {
+            final String metaName, final String paramKey) {
         Element meta = doc.selectFirst("meta[name~=(?i)^" + metaName + "$]");
         if (meta != null) {
             String content = trimToNull(meta.attr("content"));

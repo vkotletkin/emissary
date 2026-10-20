@@ -120,8 +120,8 @@ public class PresentationPlace extends ServiceProviderPlace {
         payload.setFileTypeIfEmpty(baseForm);
 
         try (InputStream is = new ByteArrayInputStream(payload.data());
-             SlideShow<?, ?> slideShow = SlideShowFactory.create(is);
-             SlideShowExtractor<?, ?> extractor = new SlideShowExtractor<>(slideShow)) {
+                SlideShow<?, ?> slideShow = SlideShowFactory.create(is);
+                SlideShowExtractor<?, ?> extractor = new SlideShowExtractor<>(slideShow)) {
 
             extractMetadata(slideShow, payload);
 

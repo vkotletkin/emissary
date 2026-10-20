@@ -138,7 +138,7 @@ public class SpreadsheetPlace extends ServiceProviderPlace {
         payload.setFileTypeIfEmpty(baseForm);
 
         try (InputStream is = new ByteArrayInputStream(payload.data());
-             Workbook workbook = WorkbookFactory.create(is)) {
+                Workbook workbook = WorkbookFactory.create(is)) {
 
             extractMetadata(workbook, payload);
 
@@ -205,7 +205,7 @@ public class SpreadsheetPlace extends ServiceProviderPlace {
     }
 
     private void appendRowText(final Row row, final DataFormatter formatter,
-                               @Nullable final FormulaEvaluator evaluator, final StringBuilder sb) {
+            @Nullable final FormulaEvaluator evaluator, final StringBuilder sb) {
         short lastCellNum = row.getLastCellNum();
         if (lastCellNum <= 0) {
             return;

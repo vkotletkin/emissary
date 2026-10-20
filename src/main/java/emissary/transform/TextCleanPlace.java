@@ -5,8 +5,6 @@ import emissary.core.IBaseDataObject;
 import emissary.core.ResourceException;
 import emissary.place.ServiceProviderPlace;
 
-import jakarta.annotation.Nullable;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -29,7 +27,7 @@ import java.util.regex.Pattern;
  */
 public class TextCleanPlace extends ServiceProviderPlace {
 
-    private static final String CHARSET_UTF_8 = "UTF-8";
+    private static final String CHARSET_UTF_8 = StandardCharsets.UTF_8.name();
 
     // Zero-width spaces, BOM, soft hyphen, bidi marks, etc.
     private static final Pattern ZERO_WIDTH_AND_FORMAT_CHARS =
@@ -43,25 +41,20 @@ public class TextCleanPlace extends ServiceProviderPlace {
     private static final Pattern UNICODE_HORIZONTAL_SPACES =
             Pattern.compile("[\\t\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]");
 
-    // Trailing spaces before newline
-    private static final Pattern TRAILING_LINE_SPACES =
-            Pattern.compile("[ ]+(?=\\n)");
+    // Находит один или более горизонтальных пробелов (пробелы, табы) перед переносом строки
+    private static final Pattern TRAILING_LINE_SPACES = Pattern.compile("\\h+(?=\\n)");
 
     // Repeated horizontal spaces (2 or more)
-    private static final Pattern MULTIPLE_SPACES =
-            Pattern.compile(" {2,}");
+    private static final Pattern MULTIPLE_SPACES = Pattern.compile(" {2,}");
 
-    // Giant ASCII separator lines (e.g. "----------------", "================", "________________")
-    private static final Pattern GIANT_SEPARATOR_RUNS =
-            Pattern.compile("([\\-=*_~#]){10,}");
+    // Использование обратной ссылки \1 гарантирует, что все 10+ символов будут одинаковыми
+    private static final Pattern GIANT_SEPARATOR_RUNS = Pattern.compile("([\\-=*_~#])\\1{9,}");
+
 
     protected int maxConsecutiveNewlines = 2;
     protected boolean normalizeUnicodeNfc = true;
     protected boolean collapseSpaces = true;
     protected boolean collapseSeparatorRuns = true;
-    protected boolean updatePrimaryData = true;
-    @Nullable
-    protected String alternateViewName = Form.TEXT;
 
     private Pattern excessiveNewlinesPattern = buildExcessiveNewlinesPattern(2);
 
@@ -116,8 +109,6 @@ public class TextCleanPlace extends ServiceProviderPlace {
             this.normalizeUnicodeNfc = configG.findBooleanEntry("NORMALIZE_UNICODE_NFC", true);
             this.collapseSpaces = configG.findBooleanEntry("COLLAPSE_SPACES", true);
             this.collapseSeparatorRuns = configG.findBooleanEntry("COLLAPSE_SEPARATOR_RUNS", true);
-            this.updatePrimaryData = configG.findBooleanEntry("UPDATE_PRIMARY_DATA", true);
-            this.alternateViewName = configG.findStringEntry("ALTERNATE_VIEW_NAME", Form.TEXT);
         }
         this.excessiveNewlinesPattern = buildExcessiveNewlinesPattern(this.maxConsecutiveNewlines);
     }
@@ -147,13 +138,8 @@ public class TextCleanPlace extends ServiceProviderPlace {
 
         byte[] cleanedBytes = cleanedText.getBytes(StandardCharsets.UTF_8);
 
-        if (this.updatePrimaryData) {
-            payload.setData(cleanedBytes);
-            payload.setFontEncoding(CHARSET_UTF_8);
-        }
-        if (this.alternateViewName != null && !this.alternateViewName.isBlank()) {
-            payload.addAlternateView(this.alternateViewName, cleanedBytes);
-        }
+        payload.setData(cleanedBytes);
+        payload.setFontEncoding(CHARSET_UTF_8);
 
         payload.setFileTypeIfEmpty(Form.TXT);
         payload.putParameter("TEXT_ORIGINAL_BYTE_LENGTH", Integer.toString(originalByteLength));

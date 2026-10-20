@@ -28,28 +28,38 @@ import java.util.regex.Pattern;
  * <li>{@code EXTRACTED_IPV4} / {@code EXTRACTED_IPV6} — IPv4 и IPv6 адреса</li>
  * <li>{@code EXTRACTED_URL} — веб-ссылки ({@code http://}, {@code https://})</li>
  * </ul>
- * Форма объекта ({@code TEXT}) не изменяется, чтобы агент мог продолжить цепочку {@code ANALYZE} и перейти в {@code IO}.
+ * Форма объекта ({@code TEXT}) не изменяется, чтобы агент мог продолжить цепочку {@code ANALYZE} и перейти в
+ * {@code IO}.
  */
 public class TextAnalyzePlace extends Analyzer {
 
     // --- Email ---
+    // EMAIL: Ограничение длины до 64 символов, проверка границ слова без конфликта с "+"
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "(?<![\\p{L}\\p{N}._%+-])([a-zA-Z0-9._%+\\-]{1,64}@([a-zA-Z0-9\\-]+\\.)+[a-zA-Z]{2,24})(?![\\p{L}\\p{N}_\\-])");
 
-    // --- URL ---
+    // URL: Добавлено исключение знаков препинания на конце URL
     private static final Pattern URL_PATTERN = Pattern.compile(
-            "\\bhttps?://[a-zA-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]+",
+            "\\bhttps?://[a-zA-Z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%]+(?<![-.,;:?!])",
             Pattern.CASE_INSENSITIVE);
 
-    // --- IPv4 (strict 0..255 per octet, not preceded/followed by digits or dots) ---
+    // IPv4: ИСПРАВЛЕНА ОПЕЧАТКА С "ёёв" -> заменено на 0-9
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "(?<![0-9.])(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}"
                     + "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?![0-9.])");
 
-    // --- IPv6 (standard and compressed forms) ---
+    // IPv6: Более гибкий паттерн, учитывающий "::1" и другие сложные сжатия
     private static final Pattern IPV6_CANDIDATE_PATTERN = Pattern.compile(
-            "(?<![\\p{L}\\p{N}:])(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}(?![\\p{L}\\p{N}:])"
-                    + "|(?<![\\p{L}\\p{N}:])(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}(?![\\p{L}\\p{N}:])");
+            "(?<![\\p{L}\\p{N}:])(" +
+                    "(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +          // Полный адрес
+                    "(?:[0-9a-fA-F]{1,4}:){1,7}:|" +                       // Сжатый на конце (fe80::)
+                    ":(?::[0-9a-fA-F]{1,4}){1,7}|" +                       // Сжатый в начале (::1)
+                    "(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|" +       // Сжатый в середине
+                    "(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|" +
+                    "(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|" +
+                    "(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|" +
+                    "(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}" +
+                    ")(?![\\p{L}\\p{N}:])");
 
     protected boolean extractEmails = true;
     protected boolean extractPhones = true;
@@ -138,6 +148,8 @@ public class TextAnalyzePlace extends Analyzer {
 
     @Override
     public void process(final IBaseDataObject payload) throws ResourceException {
+
+        // use preferred data type from cfg (use txt, or alternative. if empty -> return payload)
         byte[] data = getPreferredData(payload);
         if (data == null || data.length == 0) {
             return;
@@ -160,12 +172,6 @@ public class TextAnalyzePlace extends Analyzer {
         if (this.extractUrls) {
             extractUrls(text, payload);
         }
-        if (this.extractEntities) {
-            extractNamedEntities(text, payload);
-        }
-        if (this.extractRussianIds) {
-            extractInnAndSnils(text, payload);
-        }
     }
 
     private void extractEmailsAndDomains(final String text, final IBaseDataObject payload) {
@@ -187,6 +193,7 @@ public class TextAnalyzePlace extends Analyzer {
     }
 
     private void extractPhoneNumbers(final String text, final IBaseDataObject payload) {
+
         Set<String> phones = new LinkedHashSet<>();
         PhoneNumberUtil phoneUtil = PhoneNumberUtil.getInstance();
 
@@ -242,54 +249,5 @@ public class TextAnalyzePlace extends Analyzer {
         }
 
         putAllParameters(payload, "EXTRACTED_URL", urls);
-    }
-
-    private void extractNamedEntities(final String text, final IBaseDataObject payload) {
-        Set<String> persons = new LinkedHashSet<>();
-        Set<String> orgs = new LinkedHashSet<>();
-
-        collectGroupMatches(PERSON_FULL_FIO_PATTERN, text, persons);
-        collectGroupMatches(PERSON_INITIALS_AFTER_PATTERN, text, persons);
-        collectGroupMatches(PERSON_INITIALS_BEFORE_PATTERN, text, persons);
-
-        collectGroupMatches(ORG_RU_PATTERN, text, orgs);
-        collectGroupMatches(ORG_INTL_PATTERN, text, orgs);
-
-        putAllParameters(payload, "EXTRACTED_ENTITY_PERSON", persons);
-        putAllParameters(payload, "EXTRACTED_ENTITY_ORG", orgs);
-    }
-
-    private void collectGroupMatches(final Pattern pattern, final String text, final Set<String> target) {
-        Matcher matcher = pattern.matcher(text);
-        while (matcher.find() && target.size() < this.maxMatchesPerCategory) {
-            String match = matcher.group(1).trim().replaceAll("\\s{2,}", " ");
-            if (!match.isEmpty()) {
-                target.add(match);
-            }
-        }
-    }
-
-    private void extractInnAndSnils(final String text, final IBaseDataObject payload) {
-        Set<String> inns = new LinkedHashSet<>();
-        Set<String> snilsSet = new LinkedHashSet<>();
-
-        Matcher innMatcher = INN_CANDIDATE_PATTERN.matcher(text);
-        while (innMatcher.find() && inns.size() < this.maxMatchesPerCategory) {
-            String candidate = innMatcher.group(1);
-            if (isValidInnChecksum(candidate)) {
-                inns.add(candidate);
-            }
-        }
-
-        Matcher snilsMatcher = SNILS_PATTERN.matcher(text);
-        while (snilsMatcher.find() && snilsSet.size() < this.maxMatchesPerCategory) {
-            String candidate = snilsMatcher.group(1);
-            if (isValidSnilsChecksum(candidate)) {
-                snilsSet.add(candidate.replace(' ', '-'));
-            }
-        }
-
-        putAllParameters(payload, "EXTRACTED_INN", inns);
-        putAllParameters(payload, "EXTRACTED_SNILS", snilsSet);
     }
 }

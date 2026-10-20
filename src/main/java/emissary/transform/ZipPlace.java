@@ -80,7 +80,7 @@ public class ZipPlace extends ServiceProviderPlace {
     }
 
     private static IBaseDataObject createChildPayload(final ZipArchiveEntry entry, final byte[] childBytes,
-                                                      final IBaseDataObject parentPayload, final int childIndex) {
+            final IBaseDataObject parentPayload, final int childIndex) {
         String childShortName = parentPayload.getFilename() + EXTENDING_FILE_SUFFIX + childIndex;
         IBaseDataObject child = DataObjectFactory.getInstance(childBytes, childShortName, Form.UNKNOWN);
         child.putParameter("ARCHIVE_ENTRY_NAME", entry.getName());
@@ -117,7 +117,7 @@ public class ZipPlace extends ServiceProviderPlace {
         }
 
         try (InputStream bais = new ByteArrayInputStream(payload.data());
-             ZipArchiveInputStream zis = new ZipArchiveInputStream(bais, this.encoding, true, true)) {
+                ZipArchiveInputStream zis = new ZipArchiveInputStream(bais, this.encoding, true, true)) {
             long totalUnpackedBytes = extractEntries(zis, payload, children);
             payload.putParameter("ZIP_EXTRACTED_COUNT", Integer.toString(children.size()));
             payload.putParameter("ZIP_TOTAL_UNPACKED_BYTES", Long.toString(totalUnpackedBytes));
@@ -157,7 +157,7 @@ public class ZipPlace extends ServiceProviderPlace {
     }
 
     private boolean readEntryWithinLimits(final ZipArchiveInputStream zis, final ZipArchiveEntry entry, final ByteArrayOutputStream entryBuffer,
-                                          final int entryCount, final long remainingBudget, final IBaseDataObject payload) throws IOException {
+            final int entryCount, final long remainingBudget, final IBaseDataObject payload) throws IOException {
 
         if (!isWithinLimits(entryCount, remainingBudget, payload)) {
             return false;
