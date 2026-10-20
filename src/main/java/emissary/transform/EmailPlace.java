@@ -46,10 +46,6 @@ import java.util.Set;
  */
 public class EmailPlace extends ServiceProviderPlace {
 
-    private static final String FILETYPE_EML = "EML";
-    private static final String FORM_EML_PROCESSED = "EML-PROCESSED";
-    private static final String FORM_TXT = "TXT";
-
     private static final String TEXT_PLAIN = "text/plain";
     private static final String TEXT_HTML = "text/html";
     private static final String MULTIPART_ALTERNATIVE = "multipart/alternative";
@@ -202,7 +198,7 @@ public class EmailPlace extends ServiceProviderPlace {
 
     @Override
     protected List<String> getOutputForms() {
-        return List.of(FORM_EML_PROCESSED, Form.HTML, FORM_TXT, Form.UNKNOWN, Form.ERROR, Form.EMPTY);
+        return List.of(Form.EML_PROCESSED, Form.HTML, Form.TXT, Form.UNKNOWN, Form.ERROR, Form.EMPTY);
     }
 
     @Override
@@ -231,8 +227,8 @@ public class EmailPlace extends ServiceProviderPlace {
             ExtractionCounters counters = new ExtractionCounters();
             extractParts(message, payload, children, counters, null);
 
-            payload.setFileTypeIfEmpty(FILETYPE_EML);
-            payload.setCurrentForm(FORM_EML_PROCESSED);
+            payload.setFileTypeIfEmpty(Form.EML);
+            payload.setCurrentForm(Form.EML_PROCESSED);
             payload.putParameter("EMAIL_ATTACHMENT_COUNT", Integer.toString(counters.attachmentCount));
         } catch (Exception e) {
             children.clear();
@@ -324,7 +320,7 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void extractParts(final Entity entity, final IBaseDataObject parent, final List<IBaseDataObject> children,
-            final ExtractionCounters counters, final Set<String> seenAlternativeMimes) throws IOException {
+                              final ExtractionCounters counters, final Set<String> seenAlternativeMimes) throws IOException {
 
         Body body = entity.getBody();
         if (body == null) {
@@ -346,19 +342,19 @@ public class EmailPlace extends ServiceProviderPlace {
                 }
             }
             case Message nestedMessage ->
-                addAttachmentChild(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME,
-                        parent, children, counters);
+                    addAttachmentChild(DefaultMessageWriter.asBytes(nestedMessage), entity, FORWARDED_MESSAGE_NAME,
+                            parent, children, counters);
 
             case SingleBody singleBody -> {
                 byte[] bytes = readBytes(singleBody);
                 if (isTextBody(entity, inAlternative)) {
-                    addBodyChild(bytes, entity, parent, children, counters, seenAlternativeMimes);
+                    addBodyChild(bytes, entity, parent, children, seenAlternativeMimes);
                     return;
                 }
                 addAttachmentChild(bytes, entity, null, parent, children, counters);
             }
             default ->
-                logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
+                    logger.debug("Skipping unsupported MIME body {} on {}", body.getClass().getName(), parent.shortName());
         }
     }
 
@@ -367,7 +363,7 @@ public class EmailPlace extends ServiceProviderPlace {
      * сохраняем и {@code text/plain}, и {@code text/html} как отдельные дочерние объекты тела (по одному на MIME-тип).
      */
     private void extractAlternative(final Multipart multipart, final IBaseDataObject parent,
-            final List<IBaseDataObject> children, final ExtractionCounters counters) throws IOException {
+                                    final List<IBaseDataObject> children, final ExtractionCounters counters) throws IOException {
 
         List<Entity> parts = multipart.getBodyParts();
         if (parts.isEmpty()) {
@@ -390,8 +386,7 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void addBodyChild(final byte[] bytes, final Entity entity, final IBaseDataObject parent,
-            final List<IBaseDataObject> children, final ExtractionCounters counters,
-            final Set<String> seenAlternativeMimes) {
+                              final List<IBaseDataObject> children, final Set<String> seenAlternativeMimes) {
 
         if (bytes.length == 0) {
             return;
@@ -416,7 +411,7 @@ public class EmailPlace extends ServiceProviderPlace {
         } else {
             childBytes = toUtf8(charset, bytes);
             effectiveCharset = plainCharsetLabel(charset, childBytes != bytes);
-            form = FORM_TXT;
+            form = Form.TXT;
         }
 
         String childName = childBaseName(parent) + EXTENDING_FILE_SUFFIX + (children.size() + 1);
@@ -436,8 +431,8 @@ public class EmailPlace extends ServiceProviderPlace {
     }
 
     private void addAttachmentChild(final byte[] bytes, final Entity entity, final String fallbackFilename,
-            final IBaseDataObject parent, final List<IBaseDataObject> children,
-            final ExtractionCounters counters) {
+                                    final IBaseDataObject parent, final List<IBaseDataObject> children,
+                                    final ExtractionCounters counters) {
 
         String filename = resolveFilename(entity);
         if (filename == null) {

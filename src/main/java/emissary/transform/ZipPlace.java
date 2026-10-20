@@ -80,11 +80,11 @@ public class ZipPlace extends ServiceProviderPlace {
     }
 
     private static IBaseDataObject createChildPayload(final ZipArchiveEntry entry, final byte[] childBytes,
-            final IBaseDataObject parentPayload, final int childIndex) {
+                                                      final IBaseDataObject parentPayload, final int childIndex) {
         String childShortName = parentPayload.getFilename() + EXTENDING_FILE_SUFFIX + childIndex;
         IBaseDataObject child = DataObjectFactory.getInstance(childBytes, childShortName, Form.UNKNOWN);
         child.putParameter("ARCHIVE_ENTRY_NAME", entry.getName());
-        child.putParameter("PARENT_ARCHIVE_TYPE", "ZIP");
+        child.putParameter("PARENT_ARCHIVE_TYPE", Form.ZIP);
         if (entry.getSize() >= 0) {
             child.putParameter("ARCHIVE_DECLARED_SIZE", Long.toString(entry.getSize()));
         }
@@ -117,14 +117,15 @@ public class ZipPlace extends ServiceProviderPlace {
         }
 
         try (InputStream bais = new ByteArrayInputStream(payload.data());
-                ZipArchiveInputStream zis = new ZipArchiveInputStream(bais, this.encoding, true, true)) {
+             ZipArchiveInputStream zis = new ZipArchiveInputStream(bais, this.encoding, true, true)) {
             long totalUnpackedBytes = extractEntries(zis, payload, children);
             payload.putParameter("ZIP_EXTRACTED_COUNT", Integer.toString(children.size()));
             payload.putParameter("ZIP_TOTAL_UNPACKED_BYTES", Long.toString(totalUnpackedBytes));
             if (this.clearParentData && !children.isEmpty()) {
                 payload.setData(new byte[0]);
             }
-            payload.setCurrentForm("ZIP_UNPACKED");
+            payload.setFileTypeIfEmpty(Form.ZIP);
+            payload.setCurrentForm(Form.ZIP_PROCESSED);
         } catch (Exception e) {
             logger.error("ZipPlace failed to unpack {}", payload.shortName(), e);
             payload.addProcessingError("ZipPlace: " + e.getMessage());
@@ -156,7 +157,7 @@ public class ZipPlace extends ServiceProviderPlace {
     }
 
     private boolean readEntryWithinLimits(final ZipArchiveInputStream zis, final ZipArchiveEntry entry, final ByteArrayOutputStream entryBuffer,
-            final int entryCount, final long remainingBudget, final IBaseDataObject payload) throws IOException {
+                                          final int entryCount, final long remainingBudget, final IBaseDataObject payload) throws IOException {
 
         if (!isWithinLimits(entryCount, remainingBudget, payload)) {
             return false;
