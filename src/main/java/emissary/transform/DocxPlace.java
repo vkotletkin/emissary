@@ -38,6 +38,8 @@ import java.util.List;
  * <li>Переводит родительский объект в форму {@link Form#DOCX_PROCESSED} или {@link Form#DOC_PROCESSED}.</li>
  * </ul>
  */
+
+// TODO: NEEDS REFACTORING
 public class DocxPlace extends ServiceProviderPlace {
 
     private static final String EXTENDING_FILE_SUFFIX = "-att-";
@@ -71,9 +73,11 @@ public class DocxPlace extends ServiceProviderPlace {
     }
 
     public static void extractOoxmlMetadata(@Nullable final POIXMLProperties props, final IBaseDataObject payload) {
+
         if (props == null) {
             return;
         }
+
         POIXMLProperties.CoreProperties core = props.getCoreProperties();
         if (core != null) {
             putIfNotBlank(payload, "DOC_TITLE", core.getTitle());
@@ -106,7 +110,7 @@ public class DocxPlace extends ServiceProviderPlace {
     }
 
     public static void extractOleMetadata(@Nullable final SummaryInformation si,
-            @Nullable final DocumentSummaryInformation dsi, final IBaseDataObject payload) {
+                                          @Nullable final DocumentSummaryInformation dsi, final IBaseDataObject payload) {
         if (si != null) {
             putIfNotBlank(payload, "DOC_TITLE", si.getTitle());
             putIfNotBlank(payload, "DOC_SUBJECT", si.getSubject());
@@ -134,7 +138,7 @@ public class DocxPlace extends ServiceProviderPlace {
     }
 
     private static void addTextChild(@Nullable final String text, final String sourceFormat,
-            final IBaseDataObject parent, final List<IBaseDataObject> children) {
+                                     final IBaseDataObject parent, final List<IBaseDataObject> children) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -213,6 +217,7 @@ public class DocxPlace extends ServiceProviderPlace {
 
     @Override
     public List<IBaseDataObject> processHeavyDuty(final IBaseDataObject payload) throws ResourceException {
+
         List<IBaseDataObject> children = new ArrayList<>();
 
         if (payload.dataLength() == 0) {
@@ -220,8 +225,8 @@ public class DocxPlace extends ServiceProviderPlace {
             return children;
         }
 
-        boolean isLegacyDoc = Form.DOC.equalsIgnoreCase(payload.currentForm())
-                || Form.DOC.equalsIgnoreCase(payload.getFileType());
+        boolean isLegacyDoc = Form.DOC.equalsIgnoreCase(payload.currentForm()) || Form.DOC.equalsIgnoreCase(payload.getFileType());
+
         String baseForm = isLegacyDoc ? Form.DOC : Form.DOCX;
         payload.setFileTypeIfEmpty(baseForm);
 
@@ -249,8 +254,8 @@ public class DocxPlace extends ServiceProviderPlace {
 
     private void processOoxmlDocx(final IBaseDataObject payload, final List<IBaseDataObject> children) throws Exception {
         try (InputStream is = new ByteArrayInputStream(payload.data());
-                XWPFDocument doc = new XWPFDocument(is);
-                XWPFWordExtractor extractor = new XWPFWordExtractor(doc)) {
+             XWPFDocument doc = new XWPFDocument(is);
+             XWPFWordExtractor extractor = new XWPFWordExtractor(doc)) {
 
             extractOoxmlMetadata(doc.getProperties(), payload);
 
@@ -265,8 +270,8 @@ public class DocxPlace extends ServiceProviderPlace {
 
     private void processLegacyDoc(final IBaseDataObject payload, final List<IBaseDataObject> children) throws Exception {
         try (InputStream is = new ByteArrayInputStream(payload.data());
-                HWPFDocument doc = new HWPFDocument(is);
-                WordExtractor extractor = new WordExtractor(doc)) {
+             HWPFDocument doc = new HWPFDocument(is);
+             WordExtractor extractor = new WordExtractor(doc)) {
 
             extractOleMetadata(doc.getSummaryInformation(), doc.getDocumentSummaryInformation(), payload);
 
@@ -276,7 +281,7 @@ public class DocxPlace extends ServiceProviderPlace {
     }
 
     private void extractDocxEmbeddings(final XWPFDocument doc, final IBaseDataObject parent,
-            final List<IBaseDataObject> children) throws Exception {
+                                       final List<IBaseDataObject> children) throws Exception {
         List<PackagePart> embeddedParts = doc.getAllEmbeddedParts();
         if (embeddedParts == null || embeddedParts.isEmpty()) {
             return;

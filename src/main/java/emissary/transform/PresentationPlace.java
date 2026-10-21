@@ -30,6 +30,7 @@ import java.util.List;
  * <li>Переводит родительский объект в форму {@link Form#PPTX_PROCESSED} или {@link Form#PPT_PROCESSED}.</li>
  * </ul>
  */
+// TODO: NEEDS REFACTORING
 public class PresentationPlace extends ServiceProviderPlace {
 
     private static final String EXTENDING_FILE_SUFFIX = "-att-";

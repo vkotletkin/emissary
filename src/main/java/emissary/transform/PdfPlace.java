@@ -41,6 +41,7 @@ import java.util.Map;
  * {@link Form#PDF_PROCESSED} (или {@code PDF-PASSWORD-PROTECTED} для зашифрованных PDF).</li>
  * </ul>
  */
+// TODO: NEEDS REFACTORING
 public class PdfPlace extends ServiceProviderPlace {
 
     private static final String EXTENDING_FILE_SUFFIX = "-att-";

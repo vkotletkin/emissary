@@ -40,6 +40,8 @@ import java.util.Set;
  * далее текст прошёл через {@link TextCleanPlace} -&gt; {@link emissary.analyze.TextAnalyzePlace}).</li>
  * </ul>
  */
+
+// TODO: NEEDS REFACTORING
 public class HtmlToTextPlace extends ServiceProviderPlace {
 
     private static final String CHARSET_UTF_8 = "UTF-8";

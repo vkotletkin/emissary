@@ -30,11 +30,10 @@ import java.util.List;
  */
 @SuppressWarnings("SystemExitOutsideMain")
 public class PlaceStarter {
+
+    private static final String DEFAULT_CLASS_NAME = "emissary.place.sample.DevNullPlace";
     private static final Logger logger = LoggerFactory.getLogger(PlaceStarter.class);
-
     private static final Configurator classConf;
-
-    protected static final String defaultClassName = "emissary.place.sample.DevNullPlace";
 
     static {
         Configurator tmpCConfigurator;
@@ -42,12 +41,17 @@ public class PlaceStarter {
             tmpCConfigurator = ConfigUtil.getClassNameInventory();
         } catch (IOException | EmissaryException iox) {
             tmpCConfigurator = null;
-            logger.error("Missing ClassNameInventory.cfg: all places will become " + defaultClassName
-                    + " which is probably not what you want. Config is now " + System.getProperty(ConfigUtil.CONFIG_DIR_PROPERTY), iox);
+            logger.error("Missing ClassNameInventory.cfg: all places will become " + DEFAULT_CLASS_NAME
+                    + " which is probably not what you want. Config is now {}", System.getProperty(ConfigUtil.CONFIG_DIR_PROPERTY), iox);
             System.exit(1);
         }
         classConf = tmpCConfigurator;
     }
+
+    /**
+     * This class is not meant to be instantiated.
+     */
+    private PlaceStarter() {}
 
     /**
      * Create a place using File based config
@@ -98,7 +102,6 @@ public class PlaceStarter {
         final Object[] constructorArgs = {theConfigStream, directory, theLocation, node};
         return createPlace(theLocation, constructorArgs, theClassStr);
     }
-
 
     /**
      * Create a place using generic Object[] constructor args for maximum flexibility for finding any existing constructor.
@@ -182,6 +185,8 @@ public class PlaceStarter {
         }
     }
 
+    // ////////////////////////////////////////////////////////////
+
     public static void deregisterPlace(final String loc) {
         try {
             final IDirectoryPlace localDir = DirectoryPlace.lookup();
@@ -201,7 +206,6 @@ public class PlaceStarter {
         }
     }
 
-    // ////////////////////////////////////////////////////////////
     /**
      * method to check if the place already exists.
      */
@@ -235,8 +239,8 @@ public class PlaceStarter {
         final List<String> classStringList = classConf.findEntries(thePlaceName);
         if (classStringList.isEmpty()) {
             logger.error("Need a CLASS config entry for {} check entry in emissary.admin.ClassNameInventory.cfg, using default "
-                    + "{} which is probably not what you want.", thePlaceName, defaultClassName);
-            return defaultClassName;
+                    + "{} which is probably not what you want.", thePlaceName, DEFAULT_CLASS_NAME);
+            return DEFAULT_CLASS_NAME;
         } else if (classStringList.size() > 1) {
             if (isStrictMode) {
                 throw new EmissaryRuntimeException("Multiple entries for " + thePlaceName + ", found " + classStringList);
@@ -245,7 +249,4 @@ public class PlaceStarter {
         }
         return classStringList.get(0);
     }
-
-    /** This class is not meant to be instantiated. */
-    private PlaceStarter() {}
 }

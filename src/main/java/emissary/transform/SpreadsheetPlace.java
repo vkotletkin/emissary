@@ -37,6 +37,7 @@ import java.util.List;
  * <li>Переводит родительский объект в форму {@link Form#XLSX_PROCESSED} или {@link Form#XLS_PROCESSED}.</li>
  * </ul>
  */
+// TODO: NEEDS REFACTORING
 public class SpreadsheetPlace extends ServiceProviderPlace {
 
     private static final String EXTENDING_FILE_SUFFIX = "-att-";

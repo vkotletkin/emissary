@@ -23,6 +23,7 @@ import javax.swing.text.rtf.RTFEditorKit;
  * {@link Form#RTF_PROCESSED}.</li>
  * </ul>
  */
+// TODO: NEEDS REFACTORING
 public class RtfPlace extends ServiceProviderPlace {
 
     private static final String EXTENDING_FILE_SUFFIX = "-att-";
